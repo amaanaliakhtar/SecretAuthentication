@@ -1,4 +1,5 @@
 // jshint esversion:6
+require("dotenv").config();
 const bodyParser = require("body-parser");
 const express = require("express");
 const ejs = require("ejs");
@@ -25,8 +26,7 @@ const userSchema = new mongoose.Schema({
 });
 
 //LEVEL 2 Encryption - encrypts passwords when storing in DB
-const secret = "Thisisourlittlesecret.";
-userSchema.plugin(encrypt, { secret: secret, encryptedFields: ["password"] }); //only ecrypt password field
+userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] }); //only ecrypt password field
 
 const User = new mongoose.model("User", userSchema);
 
