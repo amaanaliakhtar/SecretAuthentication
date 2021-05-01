@@ -4,7 +4,8 @@ const bodyParser = require("body-parser");
 const express = require("express");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+// const encrypt = require("mongoose-encryption"); LEVEL 2
+const md5 = require("md5");
 
 //Add starting code
 const app = express();
@@ -26,7 +27,7 @@ const userSchema = new mongoose.Schema({
 });
 
 //LEVEL 2 Encryption - encrypts passwords when storing in DB
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] }); //only ecrypt password field
+// userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] }); //only ecrypt password field
 
 const User = new mongoose.model("User", userSchema);
 
@@ -47,7 +48,7 @@ app.post("/register", function (req, res) {
 	//creating new user from inputs from register page
 	const newUser = new User({
 		email: req.body.username,
-		password: req.body.password,
+		password: md5(req.body.password), //LEVEL 3 Hashing - irreversibly encrypting password
 	});
 
 	newUser.save(function (err) {
@@ -62,7 +63,7 @@ app.post("/register", function (req, res) {
 //LEVEL 1 Authentication - check usernames and passwords against DB values
 app.post("/login", function (req, res) {
 	const username = req.body.username;
-	const password = req.body.password;
+	const password = md5(req.body.password);
 
 	User.findOne({ email: username }, function (err, foundUser) {
 		if (err) {
@@ -77,7 +78,7 @@ app.post("/login", function (req, res) {
 	});
 });
 
-//SEVER START
+//SERVER START
 app.listen(3000, function () {
 	console.log("Server started in port 3000");
 });
