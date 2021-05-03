@@ -4,11 +4,17 @@ const bodyParser = require("body-parser");
 const express = require("express");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
+
+//LEVEL 5 Cookies & Sessions
+const session = require("express-session");
+const passport = require("passport");
+const passportLocalMongoose = require("passport-local-mongoose");
+
 // const encrypt = require("mongoose-encryption"); LEVEL 2
 // const md5 = require("md5"); //LEVEL 3 - irreversibly encrypting password
 
-const bcrypt = require("bcrypt"); //LEVEL 4 - hashing + salting
-const saltRounds = 10;
+// const bcrypt = require("bcrypt"); //LEVEL 4 - hashing + salting
+// const saltRounds = 10;
 
 //Add starting code
 const app = express();
@@ -21,7 +27,19 @@ app.use(
 	})
 );
 
+app.use(
+	session({
+		secret: "Our little secret.",
+		resave: false,
+		saveUninitialized: false,
+	})
+);
+
+app.use(passport.initialize());
+app.use(passport.session()); //use passport in sessions
+
 mongoose.connect("mongodb://localhost:27017/userDB", { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.set("useCreateIndex", true);
 
 //new mongoose.Schema for more complex tasks
 const userSchema = new mongoose.Schema({
@@ -29,10 +47,17 @@ const userSchema = new mongoose.Schema({
 	password: String,
 });
 
+userSchema.plugin(passportLocalMongoose);
+
 //LEVEL 2 Encryption - encrypts passwords when storing in DB
 // userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] }); //only ecrypt password field
 
 const User = new mongoose.model("User", userSchema);
+
+passport.use(User.createStrategy());
+
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
 //RENDERING PAGES
 app.get("/", function (req, res) {
@@ -47,41 +72,46 @@ app.get("/register", function (req, res) {
 	res.render("register");
 });
 
-app.post("/register", function (req, res) {
-	//creating new user from inputs from register page
-	bcrypt.hash(req.body.password, saltRounds, function (err, hash) {
-		const newUser = new User({
-			email: req.body.username,
-			password: hash,
-		});
+app.get("/secrets", function (req, res) {
+	if (req.isAuthenticated()) {
+		//user is already logged in or authenticated
+		res.render("secrets");
+	} else {
+		res.redirect("/login");
+	}
+});
 
-		newUser.save(function (err) {
-			if (err) {
-				console.log(err);
-			} else {
-				res.render("secrets");
-			}
-		});
+app.get("/logout", function (req, res) {
+	req.logout();
+	res.redirect("/");
+});
+
+app.post("/register", function (req, res) {
+	User.register({ username: req.body.username }, req.body.password, function (err, user) {
+		if (err) {
+			console.log(err);
+			res.redirect("/register");
+		} else {
+			passport.authenticate("local")(req, res, function () {
+				res.redirect("/secrets");
+			});
+		}
 	});
 });
 
-//LEVEL 1 Authentication - check usernames and passwords against DB values
 app.post("/login", function (req, res) {
-	const username = req.body.username;
-	const password = req.body.password;
+	const user = new User({
+		username: req.body.username,
+		password: req.body.password,
+	});
 
-	User.findOne({ email: username }, function (err, foundUser) {
+	req.login(user, function (err) {
 		if (err) {
 			console.log(err);
 		} else {
-			if (foundUser) {
-				bcrypt.compare(password, foundUser.password, function (err, result) {
-					//check npm bcrypt docs
-					if (result === true) {
-						res.render("secrets");
-					}
-				});
-			}
+			passport.authenticate("local")(req, res, function () {
+				res.redirect("/secrets");
+			});
 		}
 	});
 });
@@ -90,3 +120,41 @@ app.post("/login", function (req, res) {
 app.listen(3000, function () {
 	console.log("Server started in port 3000");
 });
+
+//////////////////////////////////////////////////////////////////////////////
+//POST REGISTER
+//creating new user from inputs from register page
+// bcrypt.hash(req.body.password, saltRounds, function (err, hash) {
+// 	const newUser = new User({
+// 		email: req.body.username,
+// 		password: hash,
+// 	});
+
+// 	newUser.save(function (err) {
+// 		if (err) {
+// 			console.log(err);
+// 		} else {
+// 			res.render("secrets");
+// 		}
+// 	});
+// });
+
+// POST LOGIN
+//LEVEL 1 Authentication - check usernames and passwords against DB values
+// const username = req.body.username;
+// 	const password = req.body.password;
+
+// 	User.findOne({ email: username }, function (err, foundUser) {
+// 		if (err) {
+// 			console.log(err);
+// 		} else {
+// 			if (foundUser) {
+// 				bcrypt.compare(password, foundUser.password, function (err, result) {
+// 					//check npm bcrypt docs
+// 					if (result === true) {
+// 						res.render("secrets");
+// 					}
+// 				});
+// 			}
+// 		}
+// 	});
